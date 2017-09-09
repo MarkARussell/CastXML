@@ -123,6 +123,7 @@ public:
             (m->isCopyAssignmentOperator() || m->isMoveAssignmentOperator());
         }
         if (mark) {
+          clang::DiagnosticErrorTrap Trap(sema.getDiagnostics());
           /* Ensure the member is defined.  */
           sema.MarkFunctionReferenced(clang::SourceLocation(), m);
           if (c && c->isDefaulted() && c->isDefaultConstructor() &&
@@ -131,6 +132,9 @@ public:
             /* Clang does not build the definition of trivial constructors
                until they are used.  Force semantic checking.  */
             sema.DefineImplicitDefaultConstructor(clang::SourceLocation(), c);
+          }
+          if (Trap.hasErrorOccurred()) {
+            m->setInvalidDecl();
           }
           /* Finish implicitly instantiated member.  */
           sema.PerformPendingInstantiations();
@@ -364,8 +368,12 @@ protected:
              pd.find("#define __NO_MATH_INLINES ") == pd.npos));
   }
 
-  bool BeginSourceFileAction(clang::CompilerInstance& CI,
-                             llvm::StringRef /*Filename*/)
+  bool BeginSourceFileAction(clang::CompilerInstance& CI
+#if LLVM_VERSION_MAJOR < 5
+                             ,
+                             llvm::StringRef /*Filename*/
+#endif
+                             ) override
   {
     CI.getPreprocessor().setPredefines(this->UpdatePredefines(CI));
 
